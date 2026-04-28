@@ -4,6 +4,7 @@ import express from 'express';
 
 import dotenv from 'dotenv';
 import { conectarDB, supabase } from './db/db.js';
+import  usuariosRouter  from './routes/usuarios.js'
 dotenv.config();
 
 
@@ -44,58 +45,37 @@ app.get("/completo", (req, res) => {
                         //ruta usuarios //
 
 
-    app.get("/usuarios", async (req,res)=> {
-        const { data, error } = await supabase
-        .from("usuarios")
-        .select("*");
+  app.use("/usuarios", usuariosRouter);  
 
-        if (error){
-            console.log("Error:", error);
-            return res.status(500).json({ error })
-        }
-        console.log("Usuarios obtenidos:", data);
 
-        res.json({
-            total: data.length,
-            usuarios: data
-        });
-    });
+
+
+
+
+
+
+
+
+
+
+
+
 
 
                      // ruta de crear usuarios a la base de datos //
-    app.post("/crear", async(req,res)=>{
-        const{nombre,apellido,telefono,correo,rol,activo}=req.body;
-
-
-    //validar que los campos no esten vacios//
-    if (!nombre || !apellido || !telefono || !correo || !rol || activo === undefined || activo === null){
-            console.log("❌ ERROR: FALTAN CAMPOS POR LLENAR");
-            return res.status(400).json({error:"FALTAN CAMPOS POR LLENAR"});
-              }
-
-
-    //insertamos los datos a la base de datos //
-        const {data,error}=await supabase
-        .from("usuarios")
-        .insert([{nombre,apellido,telefono,correo,rol,activo}])
-        .select();
-
-
-
-    //validamos is hay error //
-        if (error){
-            console.error("Error:",error);
-            return res.status(500).json({error});
-             }
-
-
-     //respuesta al cliente//
-        res.json({
-            mensaje:"🟢Usuario creado exitosamente",
-            usuario:data[0]
-        });
  
-        })
+
+
+
+
+
+
+
+
+
+
+
+
 
 
                                     //ruta de actiualizar usuario a la base de datos //
@@ -196,10 +176,174 @@ app.get("/completo", (req, res) => {
                         mensaje:"✔ Usuario eliminado",
                         usuario: data[0]
                     });
-
-
-
             });
+
+
+
+//----------------------------------------------------------------------------------------------------------------------//
+//----------------------------------------------------------------------------------------------------------------------//
+
+
+                            // ruta pedidos //
+
+            
+            app.post("/api/pedidos", async (req, res) => {
+  const { descripcion, cantidad, total, id, fecha_pedido } = req.body;
+
+  // validar campos
+  if (!descripcion || !cantidad || !total || !id || !fecha_pedido) {
+    console.log("❌ ERROR: FALTAN CAMPOS POR LLENAR");
+    return res.status(400).json({ error: "FALTAN CAMPOS POR LLENAR" });
+  }
+
+  // insertar en la tabla pedidos (NO en usuarios)
+  const { data, error } = await supabase
+    .from("pedidos")
+    .insert([{ descripcion, cantidad, total, id, fecha_pedido }])
+    .select();
+
+  if (error) {
+    console.error("Error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({
+    mensaje: "🟢 Pedido registrado exitosamente",
+    pedido: data[0],
+  });
+});
+
+   // RUTA BUSCAR PODIDOS //
+
+
+ app.get("/buscarpe/:id", async (req, res) => {
+  const { data, error } = await supabase
+    .from("pedidos")
+    .select(`
+      descripcion,
+      cantidad,
+      total,
+      fecha_pedido,
+      usuarios (
+        nombre,
+        apellido,
+        telefono,
+        correo
+      )
+    `);
+
+  if (error) {
+    console.log("Error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({
+    total: data.length,
+    pedidos: data
+  });
+});
+
+
+
+
+
+   // actualuzar pedidos //
+ 
+  
+app.put('/actualizar/:id', async (req, res) => { 
+
+    console.log("💬 BODY UPDATE:", req.body);
+
+   
+    const { id: id_url } = req.params; 
+    const { descripcion, cantidad, total, fecha_pedido } = req.body;
+
+   
+    if (!id_url) {
+        return res.status(400).json({ error: "⚠ Faltan el ID en la URL" });
+    }
+
+  
+    if (descripcion === undefined && cantidad === undefined && total === undefined && fecha_pedido === undefined) {
+        return res.status(400).json({ error: "no hay datos para actualizar" });
+    }
+
+    
+    const datosActualizar = {};
+    if (descripcion !== undefined) datosActualizar.descripcion = descripcion;
+    if (cantidad !== undefined) datosActualizar.cantidad = cantidad;
+    if (total !== undefined) datosActualizar.total = total;
+    if (fecha_pedido !== undefined) datosActualizar.fecha_pedido = fecha_pedido;
+
+    console.log("💬 Datos a actualizar:", datosActualizar);
+
+   
+    const { data, error } = await supabase
+        .from("pedidos")
+        .update(datosActualizar)
+        .eq("id_pedido", id_url) 
+        .select();
+
+    if (error) {
+        console.error("⚠ Error Supabase:", error);
+        return res.status(500).json({ error });
+    }
+    
+    if (!data || data.length === 0) {
+        return res.status(404).json({ error: "pedido no encontrado" });
+    }
+
+    res.json({  
+        mensaje: "✔ Pedido actualizado",
+        pedido: data[0]    
+    });
+});
+
+
+// ruta eliminar pedidos //
+
+ app.delete("/eliminarpe/:id", async (req,res)=>{
+
+            const { id } = req.params;
+            console.log ("🗑 Pedido a eliminar:", id);
+
+            // validar id//
+            if (!id){
+                return res.status(400).json({ error: "⚠ Falta el Id pedido"});
+                 }
+
+                 // eliminar en supa base//
+
+                 const { data, error } = await supabase
+                    .from("pedidos")
+                    .delete()
+                    .eq("id_pedido", id)
+                    .select();
+
+                    console.log("💥BD", data);
+                    console.log("⚠ Error", error);
+
+                    if (error){
+                        return res.status(500).json({ error });
+                    }
+                      if (!data || data.length === 0){
+                        return res.status(404).json({ error: "Pedido no encontrado" });
+                    }
+
+                    res.json({
+                        mensaje:"✔ Pedido eliminado",
+                        pedido: data[0]
+                    });
+            });
+
+ //--------------------------------------------------------------------------------------------------------------//
+ //--------------------------------------------------------------------------------------------------------------//
+                                    
+
+
+
+
+
 
 
 
